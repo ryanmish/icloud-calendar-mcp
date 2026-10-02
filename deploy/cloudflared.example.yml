@@ -1,0 +1,6 @@
+# Add this ingress entry to the existing named tunnel configuration.
+# Keep the current tunnel ID, credential path, and other ingress entries.
+ingress:
+  - hostname: calendar-mcp.example.com
+    service: http://127.0.0.1:8000
+  - service: http_status:404

@@ -1,0 +1,34 @@
+[project]
+name = "icloud-calendar-mcp"
+version = "0.1.0"
+description = "Self-hosted iCloud Calendar MCP service with controlled writes"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "MIT"
+dependencies = [
+  "fastmcp==3.4.7",
+  "httpx==0.28.1",
+  "icalendar==7.3.0",
+  "defusedxml==0.7.1",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=9,<10", "pytest-asyncio>=1,<2", "respx>=0.23,<0.24", "ruff>=0.16,<0.17"]
+
+[project.scripts]
+icloud-calendar-mcp = "icloud_calendar_mcp.server:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+asyncio_mode = "strict"
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E9", "F", "B"]
