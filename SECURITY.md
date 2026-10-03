@@ -13,11 +13,14 @@ The OAuth provider must issue RS256 access tokens for the exact MCP resource
 `https://your-hostname/mcp`. It must support the authorization-code flow, PKCE S256,
 discovery, and a supported ChatGPT client registration method. The service checks
 signature, issuer, audience, subject, expiry, not-before time, and required scope.
-It does not implement an authorization server or accept arbitrary bearer API keys.
+The personal mode includes a Better Auth authorization server. The original mode
+uses an external issuer. Neither mode accepts arbitrary bearer API keys.
 
 Read tools require `calendar:read`. Write tools require both `calendar:read` and
 `calendar:write`. The calendar and operation policy is checked again at execution.
-Policy changes require a service restart. Removing an operation blocks existing tokens.
+Host policy changes require a service restart. Personal mode also checks current
+connection and client policies on each call. Removing a right narrows stored
+grants. A later increase does not restore that right to old grants.
 
 ## Writes
 
@@ -34,9 +37,32 @@ Host compromise can bypass these controls. Protect the host and its backups.
 
 ## Secrets and network
 
-The Apple password is read from a restricted regular file. It is not stored in the
-repository, container image, client configuration, or MCP results. The process still
-holds it in memory. This is file protection, not an encrypted multiuser secret vault.
+In the original mode, the Apple password is read from a restricted regular file.
+In personal mode, only the logged-in owner can enter an app-specific password in
+the secure setup form. The web service verifies it through the private Python
+service, then stores it with AES-256-GCM encryption. The key is in a protected
+file outside SQLite. It is not stored in the repository, image, client
+configuration, URL, or MCP results. Both processes can hold it in memory.
+This is a personal credential store, not a multiuser secret service.
+
+The actual iCloud address comes from the host prefill or a verified connection.
+Apple relay email does not supply it. CalDAV login proves control of that account;
+it does not prove equality with the Apple identity login. The owner must approve
+the link. The principal remains pinned across disconnects.
+
+First-owner enrollment needs a random host code and an expiring signed cookie.
+Later user creation and sessions for other users are refused. Password login and
+email account linking are disabled. Browser mutations need the exact Origin and
+a CSRF value tied to a secure browser cookie and the current session. Setup pages
+use no-store, no-referrer, escaping, and a restrictive content security policy.
+The first Apple sign-in and its callback still require a live test.
+
+The public web service exposes only selected OAuth routes. Client creation and
+direct continuation/consent APIs are blocked. CIMD uses Better Auth's supplied
+Node metadata fetcher. Dynamic client registration is disabled. Private credential
+and policy APIs require a separate service secret and have no published port.
+The public listener returns 404 for those paths. Private calls deny access on
+failure. Keep both containers and their network under host control.
 
 Apple credentials are only sent to `caldav.icloud.com` and `p<number>-caldav.icloud.com`
 over HTTPS on port 443. Redirect targets are checked before the next request.
@@ -47,9 +73,20 @@ Cloudflare Tunnel makes the MCP route publicly reachable. OAuth protects account
 Do not put a browser login challenge in front of MCP requests. Keep host administration
 under separate access controls. Apply edge request limits before public use.
 
-Token revocation is managed by the identity provider. Offline JWT checks cannot see
-immediate revocation; use short-lived access tokens. A service restart with a changed
-owner or policy can remove service access before existing tokens expire.
+In the original mode, the identity provider manages token revocation. Offline
+JWT checks cannot see immediate revocation. In personal mode, five-minute RS256
+tokens carry a project grant ID and session ID. The private API checks the owner,
+client, active grant, current connection, scopes, and unexpired session on every
+protected request. Dashboard revocation and valid OAuth refresh-token revocation
+disable the grant at once. Disconnecting iCloud removes its credential and
+disables all grants. Removing an app in a client does not prove that it sent a
+revocation request. Revoke its grant in the dashboard too.
+
+SQLite and backups can retain old encrypted data after disconnect. Revoke the
+Apple app-specific password at Apple as well. Protect metadata, keys, database,
+WAL files, and backups. The Apple login client secret lasts 30 days from web
+process startup; restart before expiry. See [personal setup](docs/personal-setup.md)
+for recovery, key changes, and the live validation steps.
 
 ## Report a problem
 

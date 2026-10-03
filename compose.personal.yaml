@@ -1,0 +1,48 @@
+# Personal setup. Use this file by itself; do not merge it with compose.yaml.
+services:
+  calendar:
+    build: .
+    restart: unless-stopped
+    env_file: .env.personal
+    environment:
+      MCP_SETUP_URL: http://web:3001
+      MCP_SETUP_SECRET_FILE: /run/secrets/internal
+    volumes:
+      - ./secrets/internal:/run/secrets/internal:ro
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 128
+    mem_limit: 512m
+    cpus: 1.0
+    networks: [calendar]
+  web:
+    build: ./web
+    restart: unless-stopped
+    env_file: .env.personal
+    environment:
+      CALENDAR_BACKEND_URL: http://calendar:8000
+      CALENDAR_DATABASE: /data/calendar.sqlite
+      BETTER_AUTH_SECRET_FILE: /run/secrets/auth
+      CALENDAR_ENCRYPTION_KEY_FILE: /run/secrets/encryption
+      MCP_SETUP_SECRET_FILE: /run/secrets/internal
+      OWNER_ENROLLMENT_CODE_FILE: /run/secrets/enrollment
+      APPLE_PRIVATE_KEY_FILE: /run/secrets/apple.p8
+    ports:
+      - 127.0.0.1:3000:3000
+    volumes:
+      - ./data:/data
+      - ./secrets:/run/secrets:ro
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 128
+    mem_limit: 512m
+    cpus: 1.0
+    networks: [calendar]
+networks:
+  calendar:

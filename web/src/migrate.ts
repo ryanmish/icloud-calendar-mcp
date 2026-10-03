@@ -1,0 +1,17 @@
+import { mkdirSync } from "node:fs";
+import { dirname } from "node:path";
+import { DatabaseSync } from "node:sqlite";
+import { getMigrations } from "better-auth/db/migration";
+import { loadConfig } from "./config.js";
+import { Store } from "./store.js";
+import { createAuth } from "./auth.js";
+process.umask(0o077);
+const config = loadConfig();
+mkdirSync(dirname(config.database), { recursive: true, mode: 0o700 });
+const db = new DatabaseSync(config.database);
+const store = new Store(db, config.encryptionKey);
+const auth = createAuth(config, store);
+const migration = await getMigrations(auth.options);
+await migration.runMigrations();
+console.info("Calendar database schema is ready. No account was connected.");
+db.close();
