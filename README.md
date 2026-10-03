@@ -51,6 +51,8 @@ The HTTP tests run in memory without a network listener.
 
 Start with the [personal setup guide](docs/personal-setup.md). It covers Apple
 developer registration, secret files, migration, Cloudflare Tunnel, and ChatGPT.
+See the [deployment record](docs/deployment-record.md) for verified host preparation
+and the current login prerequisite.
 Use `compose.personal.yaml` for the new guided flow. It adds a small Better Auth
 service beside the existing Python server. The intended MCP URL is
 `https://cal.ryanmish.com/mcp`. No live endpoint is claimed.
