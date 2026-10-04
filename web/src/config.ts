@@ -6,6 +6,7 @@ export type Policy = {
   write_operations: string[];
 };
 export type Config = {
+  loginMethod: "password" | "apple";
   origin: string;
   database: string;
   authSecret: string;
@@ -61,6 +62,9 @@ export function loadConfig(env = process.env): Config {
     return v;
   };
   const origin = required("MCP_PUBLIC_URL").replace(/\/$/, "");
+  const loginMethod = env.MCP_LOGIN_METHOD || "password";
+  if (!["password", "apple"].includes(loginMethod))
+    throw new Error("MCP_LOGIN_METHOD must be password or apple.");
   const url = new URL(origin);
   if (url.protocol !== "https:" || url.origin !== origin)
     throw new Error("MCP_PUBLIC_URL must be an HTTPS origin.");
@@ -88,16 +92,18 @@ export function loadConfig(env = process.env): Config {
   )
     throw new Error("Writable calendars must also be readable.");
   return {
+    loginMethod: loginMethod as Config["loginMethod"],
     origin,
     database: env.CALENDAR_DATABASE || "/data/calendar.sqlite",
     authSecret: secretFile(env.BETTER_AUTH_SECRET_FILE),
     encryptionKey: Buffer.from(key, "hex"),
     internalSecret: secretFile(env.MCP_SETUP_SECRET_FILE),
     enrollmentCode: secretFile(env.OWNER_ENROLLMENT_CODE_FILE),
-    appleClientId: required("APPLE_CLIENT_ID"),
-    appleTeamId: required("APPLE_TEAM_ID"),
-    appleKeyId: required("APPLE_KEY_ID"),
-    applePrivateKey: secretFile(env.APPLE_PRIVATE_KEY_FILE),
+    appleClientId: loginMethod === "apple" ? required("APPLE_CLIENT_ID") : "",
+    appleTeamId: loginMethod === "apple" ? required("APPLE_TEAM_ID") : "",
+    appleKeyId: loginMethod === "apple" ? required("APPLE_KEY_ID") : "",
+    applePrivateKey:
+      loginMethod === "apple" ? secretFile(env.APPLE_PRIVATE_KEY_FILE) : "",
     icloudAddress: env.ICLOUD_USERNAME || "",
     calendarBackend: privateBackend(
       env.CALENDAR_BACKEND_URL || "http://calendar:8000",

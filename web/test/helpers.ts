@@ -5,9 +5,13 @@ import { Store } from "../src/store.js";
 import { createAuth } from "../src/auth.js";
 import { App } from "../src/app.js";
 import type { Config } from "../src/config.js";
-export async function fixture() {
+export async function fixture(
+  loginMethod: Config["loginMethod"] = "apple",
+  enrolledOwner = true,
+) {
   const db = new DatabaseSync(":memory:");
   const config: Config = {
+    loginMethod,
     origin: "https://cal.ryanmish.com",
     database: ":memory:",
     authSecret: "test-auth-secret-not-for-host-use-00000000",
@@ -34,22 +38,29 @@ export async function fixture() {
   const auth = createAuth(config, store);
   await (await getMigrations(auth.options)).runMigrations();
   const ctx = await auth.$context;
-  const user = await ctx.adapter.create<{ id: string }>({
-    model: "user",
-    data: {
-      email: "relay@privaterelay.appleid.com",
-      name: "Test Owner",
-      emailVerified: true,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    },
-  });
-  store.bindOwner(user.id);
-  const session = await ctx.internalAdapter.createSession(user.id);
+  const user = enrolledOwner
+    ? await ctx.adapter.create<{ id: string }>({
+        model: "user",
+        data: {
+          email: "relay@privaterelay.appleid.com",
+          name: "Test Owner",
+          emailVerified: true,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      })
+    : { id: "not-enrolled" };
+  if (enrolledOwner) store.bindOwner(user.id);
+  const session = enrolledOwner
+    ? await ctx.internalAdapter.createSession(user.id)
+    : { id: "", token: "" };
   const signature = createHmac("sha256", config.authSecret)
     .update(session.token)
     .digest("base64");
-  const cookies = `${ctx.authCookies.sessionToken.name}=${encodeURIComponent(session.token + "." + signature)}; __Host-calendar-browser=test-browser`;
+  const cookies =
+    (enrolledOwner
+      ? `${ctx.authCookies.sessionToken.name}=${encodeURIComponent(session.token + "." + signature)}; `
+      : "") + "__Host-calendar-browser=test-browser";
   const app = new App(config, store, auth, async () => ({
     principal: "https://p01-caldav.icloud.com/123/principal/",
     calendars: [

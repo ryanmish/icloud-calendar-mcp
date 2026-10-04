@@ -113,7 +113,7 @@ export class App {
       headers: request.headers,
     });
     if (!session || session.user.id !== this.store.owner())
-      throw new Error("Sign in with the enrolled Apple account.");
+      throw new Error("Sign in with the enrolled owner account.");
     return session;
   }
   private async body(request: Request, sessionId = "") {
@@ -154,6 +154,13 @@ export class App {
     );
   }
   private async oauthRedirect(response: Response) {
+    if (response.status === 429) {
+      const out = page(
+        "Too many sign-in attempts",
+        '<p>Wait one minute, then <a href="/sign-in">try again</a>.</p>',
+      );
+      return new Response(out.body, { status: 429, headers: out.headers });
+    }
     if (
       response.status >= 300 &&
       response.status < 400 &&
@@ -216,7 +223,7 @@ export class App {
       if (url.pathname === "/health") return json({ status: "ok" });
       if (request.method === "GET" && url.pathname === "/login-error")
         return page(
-          "Apple sign-in did not finish",
+          "Sign-in did not finish",
           '<p>No calendar access was approved. Start the connection again in ChatGPT, or <a href="/sign-in">sign in here</a> to manage setup.</p>',
         );
       if (
@@ -317,12 +324,60 @@ export class App {
         if (session?.user.id === this.store.owner())
           return this.dashboard(request, q);
         const form = this.hidden(request, q);
+        if (this.config.loginMethod === "password") {
+          const first = !this.store.owner();
+          return page(
+            first ? "Set up your calendar connection" : "Sign in",
+            `<p>${first ? "Create the one-owner account for this service. No Apple Developer account is needed." : "Use your calendar service password."}</p>
+            <form method="post" action="${first ? "/create-owner" : "/login"}">${form}
+            ${first ? '<label>Host setup code<input name="code" type="password" autocomplete="off" required></label><p>Use the code from the protected setup file on your dev box. It is needed only for first setup.</p>' : ""}
+            <label>iCloud account address<input name="email" type="email" autocomplete="username" value="${esc(this.config.icloudAddress)}" required></label>
+            <label>Service password<input name="password" type="password" autocomplete="${first ? "new-password" : "current-password"}" minlength="12" maxlength="128" required></label>
+            <p>${first ? "Use a new password with at least 12 characters. Do not use your Apple account password. The next step asks for the separate iCloud app-specific password." : "This password signs you in to the calendar service. It is separate from the iCloud app-specific password."}</p>
+            <button>${first ? "Create account and continue" : "Sign in"}</button></form>`,
+          );
+        }
         return page(
           "Connect your calendar",
           `<p>Use your Apple account to sign in. Then connect iCloud Calendar. There is no service password.</p>
           ${!this.store.owner() && !enrolled(cookieValue(request.headers, "__Host-calendar-enroll"), this.config.authSecret) ? `<form method="post" action="/enroll">${form}<label>Host enrollment code<input name="code" type="password" autocomplete="off" required></label><button>Unlock owner setup</button></form><p>The host creates this code. It prevents another person from taking this installation.</p>` : ""}
           <form id="apple-login" method="post" action="/login">${form}<button>Continue with Apple</button></form><p id="error" role="alert"></p>`,
         );
+      }
+      if (request.method === "POST" && url.pathname === "/create-owner") {
+        const form = await this.body(request);
+        const query = form.get("oauth_query") || "";
+        await this.query(query);
+        if (
+          this.config.loginMethod !== "password" ||
+          this.store.owner() ||
+          !sameSecret(form.get("code") || "", this.config.enrollmentCode)
+        )
+          throw new Error("Owner enrollment could not be verified.");
+        const copy = new Headers(request.headers);
+        copy.set(
+          "Cookie",
+          (copy.get("Cookie") || "") +
+            "; __Host-calendar-enroll=" +
+            enrollmentCookie(this.config.authSecret, Date.now() + 9 * 60_000),
+        );
+        const response = await this.oauth(
+          new Request(request.url, { headers: copy }),
+          "/sign-up/email",
+          {
+            email: form.get("email"),
+            password: form.get("password"),
+            name: "Calendar owner",
+            callbackURL: this.config.origin + "/setup",
+          },
+          query,
+        );
+        if (query) return await this.oauthRedirect(response);
+        if (!response.ok) return await this.oauthRedirect(response);
+        const out = redirect("/setup");
+        for (const cookie of response.headers.getSetCookie())
+          out.headers.append("Set-Cookie", cookie);
+        return out;
       }
       if (request.method === "POST" && url.pathname === "/enroll") {
         const form = await this.body(request);
@@ -344,6 +399,19 @@ export class App {
         const form = await this.body(request);
         const query = form.get("oauth_query") || "";
         await this.query(query);
+        if (this.config.loginMethod === "password")
+          return await this.oauthRedirect(
+            await this.oauth(
+              request,
+              "/sign-in/email",
+              {
+                email: form.get("email"),
+                password: form.get("password"),
+                callbackURL: this.config.origin + "/setup",
+              },
+              query,
+            ),
+          );
         const response = await this.oauth(
           request,
           "/sign-in/social",
@@ -354,7 +422,7 @@ export class App {
           },
           query,
         );
-        return this.oauthRedirect(response);
+        return await this.oauthRedirect(response);
       }
       const session = await this.owner(request);
       if (
@@ -367,9 +435,9 @@ export class App {
         if (!c || c.status !== "connected" || url.pathname === "/reconnect")
           return page(
             "Connect iCloud Calendar",
-            `<p>Apple login does not provide calendar access. Create an app-specific password on <a href="https://account.apple.com" target="_blank" rel="noopener noreferrer">Apple’s account page</a>, then return here.</p>
-          <form method="post" action="/connect">${hidden}<label>iCloud account address<input name="username" type="email" autocomplete="username" value="${esc(c?.username || this.config.icloudAddress)}" required></label>
-          <p>This address comes from the host setting or your saved connection. It does not come from Apple’s relay email.</p>
+            `<p>Your service sign-in does not provide calendar access. Create an app-specific password on <a href="https://account.apple.com" target="_blank" rel="noopener noreferrer">Apple’s account page</a>, then return here.</p>
+          <form method="post" action="/connect">${hidden}<label>iCloud account address<input name="username" type="email" autocomplete="username" value="${esc(c?.username || this.config.icloudAddress || (this.config.loginMethod === "password" ? session.user.email : ""))}" required></label>
+          <p>Check this prefilled address. Calendar access is verified separately. Apple’s relay email does not supply this value.</p>
           <label>App-specific password<input name="password" type="password" autocomplete="off" pattern="[a-z]{4}(-[a-z]{4}){3}" required></label>
           <label class="check"><input type="checkbox" name="link" value="yes" required>I approve linking this iCloud account to my service account.</label><button>Verify and connect</button></form><p>Enter only the app-specific password. The service stores it encrypted.</p>`,
           );
@@ -580,7 +648,7 @@ export class App {
         error instanceof Error &&
         [
           "This request has expired. Start the connection again in ChatGPT.",
-          "Sign in with the enrolled Apple account.",
+          "Sign in with the enrolled owner account.",
           "Select permitted calendars and operations.",
           "This access exceeds the host limits.",
           "This is a different iCloud account. Host reset is required.",
@@ -588,7 +656,7 @@ export class App {
         ].includes(error.message);
       const failure = page(
         "Setup could not continue",
-        `<p>${esc(known ? error.message : "Check your setup details, then try again. No new access was approved.")}</p><p><a href="/setup">Open calendar setup</a> or restart the connection in ChatGPT.</p>`,
+        `<p>${esc(known ? error.message : "Check your setup details, then try again. No new access was approved.")}</p><p><a href="/sign-in">Sign in</a>, <a href="/setup">open calendar setup</a>, or restart the connection in ChatGPT.</p>`,
       );
       return new Response(failure.body, {
         status: 400,

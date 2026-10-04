@@ -1,5 +1,13 @@
 # Login and iCloud setup plan
 
+> Decision update, 2026-10-03: The owner chose a service password for the personal
+> version. No Apple Developer account is available, and no paid registration is
+> planned. Better Auth password login is now the default. Signup fills the entered
+> iCloud address into the next form; CalDAV verifies access separately. The Apple
+> login recommendation below records the earlier research. Use
+> [personal setup](personal-setup.md) for the current implementation and steps.
+
+
 Research date: 2026-10-02. This is a proposed design. It is not a deployment record.
 
 Implementation update: The personal fallback is now implemented. See

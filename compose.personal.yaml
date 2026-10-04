@@ -1,6 +1,7 @@
 # Personal setup. Use this file by itself; do not merge it with compose.yaml.
 services:
   calendar:
+    user: "${CALENDAR_UID:-10001}:${CALENDAR_GID:-10001}"
     build: .
     restart: unless-stopped
     env_file: .env.personal
@@ -19,6 +20,7 @@ services:
     cpus: 1.0
     networks: [calendar]
   web:
+    user: "${CALENDAR_UID:-10001}:${CALENDAR_GID:-10001}"
     build: ./web
     restart: unless-stopped
     env_file: .env.personal

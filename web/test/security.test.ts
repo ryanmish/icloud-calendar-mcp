@@ -468,7 +468,7 @@ test("Apple login starts at the real provider with protected state and a secure 
       new Request(f.config.origin + "/login-error?error=cancelled"),
     );
     assert.equal(failure.status, 200);
-    assert.match(await failure.text(), /Apple sign-in did not finish/);
+    assert.match(await failure.text(), /Sign-in did not finish/);
   } finally {
     f.db.close();
   }

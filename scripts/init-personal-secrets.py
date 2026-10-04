@@ -19,7 +19,7 @@ def main():
         (directory / name).chmod(0o600)
     Path("data").mkdir(mode=0o700, exist_ok=True)
     print("Service keys created. No Apple credential or account was created.")
-    print("See docs/personal-setup.md for protected file ownership and Apple setup.")
+    print("See docs/personal-setup.md for protected file ownership and owner setup.")
 
 
 if __name__ == "__main__":

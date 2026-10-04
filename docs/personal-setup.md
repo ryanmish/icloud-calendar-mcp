@@ -1,9 +1,9 @@
-# Personal Apple login and calendar setup
+# Personal password login and calendar setup
 
 This guide covers the first personal deployment. One installation permits one
 service owner and one iCloud account. It does not support shared hosting.
 
-The code and offline tests are implemented. The Docker images build. A real Apple
+The code and offline tests are implemented. The Docker images build. A real service
 login, iCloud connection, Cloudflare route, and ChatGPT connection still need a
 live test. `https://cal.ryanmish.com/mcp` is the intended MCP URL. This guide does
 not mean that the URL is live.
@@ -15,10 +15,12 @@ not mean that the URL is live.
 2. ChatGPT starts the service authorization flow. The service opens its login page.
 3. On the first login only, enter the host enrollment code. This protects the first
    owner record from another visitor. It is a setup code, not a second account password.
-4. Use Sign in with Apple. The service creates its internal owner record. Later
-   logins must use that same Apple identity. Email address matching is disabled.
-5. The service opens the iCloud setup form. The address comes from `ICLOUD_USERNAME`
-   or a saved, verified connection. It never comes from an Apple relay email.
+4. Enter your actual iCloud address and create a service password with 12 to 128
+   characters. Save this password in your password manager. It is separate from
+   your Apple password. Later logins use this same service account.
+5. The service opens the iCloud setup form. It fills the address from your signup
+   entry, `ICLOUD_USERNAME`, or a saved connection. Check the address. The prefill
+   is not proof of calendar access. An Apple relay email is not used.
 6. On Apple's account page, create an app-specific password. Return to the setup
    form. Check the address, enter that password, and approve the account link.
    Never enter your normal Apple password in this form or in chat.
@@ -30,11 +32,10 @@ not mean that the URL is live.
 9. The service returns an OAuth code to ChatGPT. ChatGPT exchanges it with PKCE.
    The connection can then use the approved tools.
 
-There are three separate parts: Apple identity login, the iCloud app-specific
-password, and ChatGPT's OAuth grant. Apple identity tokens are not calendar
-credentials. Successful CalDAV authentication verifies control of the supplied
-account. It does not prove that the Apple login and CalDAV account are the same
-Apple identity. The explicit account-link approval is therefore required. The
+There are three separate parts: the service password, the iCloud app-specific
+password, and ChatGPT's OAuth grant. The service stores a hash of the service
+password with Better Auth. It does not verify email ownership at signup.
+Successful CalDAV authentication verifies access to the supplied iCloud account. The explicit account-link approval is therefore required. The
 verified CalDAV principal is pinned for later reconnects.
 
 No GitHub plugin package or public directory approval is needed for this first
@@ -44,28 +45,14 @@ accounts. Mobile support for this private flow remains unverified. See the
 
 ## What the host operator must prepare
 
-Sign in with Apple still needs Apple developer registration. The fallback removes
-the need for Apple Calendar OAuth approval; it does not remove the Apple identity
-registration requirement. Apple's web setup requires a Services ID associated
-with a primary Apple-platform App ID. Do not assume that a web-only service is
-eligible without that registration. See
-[Apple's web setup](https://developer.apple.com/help/account/capabilities/configure-sign-in-with-apple-for-the-web/)
-and the [Better Auth Apple provider](https://better-auth.com/docs/authentication/apple).
+The default uses `MCP_LOGIN_METHOD=password`. No Apple Developer account or
+paid Apple registration is required for this path. Apple requires two-factor
+authentication for an app-specific password. See
+[Apple's password guide](https://support.apple.com/en-us/102654).
 
-Prepare the Services ID, Team ID, Key ID, and Sign in with Apple `.p8` private key.
-Register `cal.ryanmish.com` and this return URL:
-
-```text
-https://cal.ryanmish.com/api/auth/callback/apple
-```
-
-This is the configured Better Auth callback. Verify the real Apple redirect in
-the live test. Do not submit an Apple Calendar OAuth application for this version.
-
-On the dev box, copy `.env.personal.example` to `.env.personal`. Set the real
-iCloud account address in `ICLOUD_USERNAME`. This value is an editable prefill;
-it does not grant calendar access. Set the three Apple developer IDs. These
-values are not the Apple account password. Keep the file private and out of Git.
+On the dev box, copy `.env.personal.example` to `.env.personal`. Leave
+`ICLOUD_USERNAME` empty to use the address from the first signup. You can set it
+as a prefill instead. The address does not grant access. Keep this file private.
 
 When ready for secure host setup, run this script from the repository root:
 
@@ -75,35 +62,35 @@ python3 scripts/init-personal-secrets.py
 
 The script creates four random service key files. It does not print their values,
 overwrite existing key files, create an Apple credential, or connect an account.
-Place the downloaded Apple key at `secrets/apple.p8` yourself. Do not put it in a
-terminal argument, chat, screenshot, or repository file. Use a secure local editor
-to read `secrets/enrollment` when the browser asks for the first-owner code.
+Use a secure host editor to read `secrets/enrollment` when the browser asks for
+the first-owner code. Do not send the code or either password through chat.
+No Apple signing key is needed in password mode.
 
-The containers run as UID/GID 10001. On a Linux dev box, set file ownership and
-permissions before migration:
+The containers run as UID/GID 10001 by default. For a personal Linux host, you
+can set `CALENDAR_UID` and `CALENDAR_GID` in `.env.personal` to the numeric IDs
+from `id -u` and `id -g`. Use a non-root account. The user that creates the
+protected files must match the container user. This avoids a root ownership step.
 
 ```sh
 chmod 600 .env.personal secrets/*
 chmod 700 secrets data
-sudo chown -R 10001:10001 secrets data
 ```
 
-The web service refuses secret files with group or other access. Do not solve a
-permission error with mode 644. Use a protected host editor for later key changes.
-The script creates service keys only when the operator runs it. It was not run as
-part of development.
+If you keep UID/GID 10001, the operator must instead set `secrets` and `data`
+ownership to 10001:10001. The web service refuses secret files with group or
+other access. Do not use mode 644 to solve a permission fault.
 
 ## Build, migrate, and start
 
 Use `compose.personal.yaml` by itself. Do not merge it with `compose.yaml`, which
 retains the original external-issuer deployment.
 
-Run these commands only after the secure files and Apple registration are ready:
+Run these commands only after the secure files and host settings are ready:
 
 ```sh
-docker compose -f compose.personal.yaml build
-docker compose -f compose.personal.yaml run --rm --no-deps web node dist/migrate.js
-docker compose -f compose.personal.yaml up -d
+docker compose --env-file .env.personal -f compose.personal.yaml build
+docker compose --env-file .env.personal -f compose.personal.yaml run --rm --no-deps web node dist/migrate.js
+docker compose --env-file .env.personal -f compose.personal.yaml up -d
 ```
 
 Migration creates the Better Auth schema with the installed plugin versions. It
@@ -131,13 +118,14 @@ public use. Do not log request bodies or authorization headers.
 | `/.well-known/oauth-authorization-server/api/auth` | Better Auth issuer metadata | Yes |
 | `/api/auth/jwks` | Public RS256 verification keys | Yes |
 | `/api/auth/oauth2/authorize`, `/token`, `/revoke` | OAuth protocol routes; all under `/api/auth/oauth2` | Yes; protocol checks apply |
-| `/api/auth/callback/apple` | Apple identity callback | Yes; OAuth state checks apply |
+| `/create-owner`, `/login` | Protected first signup and password login forms | Yes; host code or password plus CSRF checks |
+| `/api/auth/callback/apple` | Optional Apple identity callback | Yes; OAuth state checks apply |
 | `/setup`, `/consent`, `/` | Owner setup, approval, and management | Yes; owner login required |
 | Python `/internal/discover` on port 8000 | Credential verification and calendar metadata | Private network and service secret |
 | Web `/internal/access`, `/internal/repair` on port 3001 | Current grant checks and credential repair state | Private network and service secret |
 
 The public web listener returns 404 for `/internal/*`. Only explicit auth protocol
-paths are public. The client creation API, password signup, direct setup
+paths are public. The client creation API, direct Better Auth password signup, direct setup
 continuation, direct consent API, and JWT minting API are not public.
 
 ## Read and write limits
@@ -163,8 +151,8 @@ event safety checks and ETag conditions remain in the Python service.
 
 | Case | Result and next step |
 | --- | --- |
-| Existing owner | Apple finds the existing service user. The same signed setup flow continues. No password account is created. |
-| Apple login is cancelled | No calendar access is issued. Start the connection again in ChatGPT. |
+| Existing owner | Sign in with the service password. The signed setup flow continues. No second account is created. |
+| Signup or login is cancelled | No calendar access is issued. Start the connection again in ChatGPT. |
 | Final consent is cancelled | ChatGPT receives an OAuth denial. Prior grants and permissions remain unchanged. A verified iCloud connection may remain saved. Disconnect it from the dashboard if required. |
 | Browser is closed during setup | Verified iCloud setup remains saved. Pending client choices expire after 15 minutes; the provider may expire the signed request sooner. Resume while valid or start again in ChatGPT. |
 | iCloud authentication fails | A confirmed CalDAV authentication failure suspends the connection and its grants. Network errors do not clear credentials. Open `/setup`, use a new app-specific password for the same account, then approve a new ChatGPT grant. |
@@ -172,7 +160,7 @@ event safety checks and ETag conditions remain in the Python service.
 | Different CalDAV principal | Setup is refused, including after iCloud disconnect. A deliberate host reset is required. |
 | Remove the app in ChatGPT | Do not assume that the client sent a revoke call. Also use the service dashboard to disconnect its grant. A valid refresh-token revocation call is supported and stops grant access immediately. |
 | Disconnect a client in the dashboard | Its grant is disabled and stored refresh records for that grant are removed. Other grants and the iCloud connection remain. |
-| Disconnect iCloud | The stored credential and pending flows are removed; all calendar grants stop. The Apple identity owner and pinned principal remain. Also revoke the app-specific password at Apple. |
+| Disconnect iCloud | The stored credential and pending flows are removed; all calendar grants stop. The service owner and pinned principal remain. Also revoke the app-specific password at Apple. |
 | Sign out | The current service session is removed. Tokens tied to it fail the private access check. Sign in and approve a fresh connection. |
 | Service session expires | Sessions last up to 30 days without renewal. Calendar tokens tied to an expired session fail closed. Sign in and reconnect. |
 
@@ -195,10 +183,9 @@ Better Auth's built-in Kysely support. There is no Next.js, Prisma, Drizzle, or
 native SQLite add-on. This replaces the preliminary Next.js suggestion in the
 research plan with a smaller server.
 
-Apple login uses `socialProviders.apple`. `jose` signs the Apple client secret
-with ES256. The secret lasts 30 days and is generated at process start. Restart
-the web service before that deadline; this version has no automatic regeneration
-timer. Rotate the Apple signing key through Apple's secure setup when needed.
+Optional Apple login uses `socialProviders.apple`. Its provider function uses
+`jose` to sign a 30-day Apple client secret with ES256 when it is called. Rotate
+the Apple signing key through Apple's secure setup when needed.
 
 `oauthProvider()` implements code exchange, PKCE, consent, and refresh.
 `jwt()` signs service access tokens with RS256. `cimd()` uses the supplied Node
@@ -252,7 +239,7 @@ database. They cover the real Better Auth authorization-code and refresh flow,
 private access checks, immediate revocation, secure setup, owner lock, reconnect,
 and permission limits. They do not call Apple's login or iCloud service.
 
-The live test must check Apple registration and login, the tunnel, MCP discovery,
+The live test must check service signup and login, the tunnel, MCP discovery,
 ChatGPT CIMD and return callback, calendar reads, cancellation, credential repair,
 and client revocation. Test create/update only on a separate calendar after a
 new approval. Check ETag conflict behavior. Keep production writes disabled until
@@ -262,3 +249,41 @@ For multiple users, replace the singleton connection and owner lock with per-use
 connections, policies, credentials, and queries. Add tenant isolation tests,
 administration, quotas, secret rotation, recovery, and a reviewed registration
 policy. Do not remove the owner check and call this a multi-user service.
+
+## Service password recovery
+
+There is no email reset service. Use this host-only command from the repository
+on the dev box while the web container is running:
+
+```sh
+python3 scripts/reset-owner-password.py
+```
+
+The command asks for the new password twice with input hidden. It sends the
+password through standard input to the container. It does not put it in an
+argument, environment variable, or file. Recovery revokes service sessions and
+all client grants. The encrypted iCloud credential and access policy stay in
+place. Sign in again and approve a new ChatGPT connection. The command is for
+the host operator; it has no public HTTP route. Protect host and Docker access.
+
+Login attempts use Better Auth's database rate limiter: five password attempts
+per minute and three signup attempts per minute. The current wrapper uses one
+shared bucket per path for this one-owner service. This limits guessing but can
+also delay the owner during an attack. Do not treat it as protection against all
+traffic floods.
+
+## Optional Apple identity login
+
+The previous Apple login path remains available with `MCP_LOGIN_METHOD=apple`.
+It disables password signup and login. It requires Apple developer registration,
+a Services ID linked to a primary Apple-platform App ID, Team ID, Key ID, and
+`secrets/apple.p8`. Register `cal.ryanmish.com` and this return URL:
+
+```text
+https://cal.ryanmish.com/api/auth/callback/apple
+```
+
+See [Apple's web setup](https://developer.apple.com/help/account/capabilities/configure-sign-in-with-apple-for-the-web/).
+Do not change login methods on an enrolled installation without a reviewed
+account migration. Automatic account linking is disabled. Apple identity tokens
+never provide iCloud Calendar access. This optional path still needs a live test.

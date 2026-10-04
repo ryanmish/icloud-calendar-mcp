@@ -21,35 +21,33 @@ These checks do not prove a live MCP endpoint. The project containers have not
 been started. No Apple credential, service owner, or client grant was created.
 No DNS or tunnel setting was changed.
 
-## Login prerequisite
+## Personal login decision
 
-The owner has confirmed that no Apple Developer account is available.
-The current code requires Apple identity developer settings and a signing key.
-It cannot complete Apple login with a normal consumer Apple account alone.
+The owner chose a service password. No Apple Developer account is available,
+and the owner does not want paid registration. The personal default is now
+`MCP_LOGIN_METHOD=password`. Optional Apple login remains in the code.
 
-Apple's [web login setup](https://developer.apple.com/help/account/capabilities/configure-sign-in-with-apple-for-the-web/)
-requires a Services ID linked to a primary Apple-platform App ID. Apple lists
-Developer Program membership at US$99 per year, with regional prices and possible
-fee waivers in its [enrollment guide](https://developer.apple.com/programs/enroll/).
-Membership alone does not prove eligibility for a standalone web-only service.
+The first form requires the protected host code, an iCloud address, and a new
+service password. The second form fills that address and asks for a separate
+iCloud app-specific password. CalDAV verifies access; signup email alone does
+not prove account control. Better Auth stores a hash of the service password.
 
-The owner must choose whether to keep Apple login and complete registration, or
-use a service passkey for this personal version. A passkey can be stored in Apple
-Passwords/iCloud Keychain, with no separate service password. It is a separate
-service credential and does not prove Apple identity. Better Auth supports a
-[passkey plugin](https://better-auth.com/docs/plugins/passkey). Apple documents
-[passkey security and iCloud Keychain](https://support.apple.com/en-us/102195).
-The passkey alternative is not implemented or deployed at this point.
+Local validation passes: 79 Python tests, 24 web tests, TypeScript checks, build,
+format checks, and Python lint. Offline checks cover signup, later login, refusal of a second owner, CSRF,
+password rate limits, host password recovery, the full PKCE code exchange,
+refresh, and immediate grant revocation. They use fake accounts and credentials.
 
-Both paths keep iCloud access separate. The app-specific password must be entered
-through the secure setup form. Do not put it in chat, shell arguments, logs,
-source control, screenshots, or URLs.
+No Apple application or account purchase is needed for this password path.
+The app-specific password still requires Apple two-factor authentication.
+See [Apple's guide](https://support.apple.com/en-us/102654).
+Both passwords must be entered through secure user-controlled input.
+Do not put them in chat, shell arguments, logs, source control, screenshots, or URLs.
 
 ## Next steps
 
-1. Resolve the login choice and complete its code and secure setup.
+1. Prepare secure host files for the password login path.
 2. Prepare protected service files and the host environment. Keep the actual
-   iCloud address in the protected host setting for the form prefill.
+   iCloud address in the browser signup form for the next form prefill.
 3. Migrate the database and start the two project services with writes disabled.
 4. Verify the private service checks and denial of unauthenticated MCP calls.
 5. Prepare and validate the exact tunnel rule. Preserve the existing routes.

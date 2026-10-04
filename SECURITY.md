@@ -45,17 +45,20 @@ file outside SQLite. It is not stored in the repository, image, client
 configuration, URL, or MCP results. Both processes can hold it in memory.
 This is a personal credential store, not a multiuser secret service.
 
-The actual iCloud address comes from the host prefill or a verified connection.
+The iCloud address comes from the owner signup entry, host prefill, or a verified connection.
 Apple relay email does not supply it. CalDAV login proves control of that account;
-it does not prove equality with the Apple identity login. The owner must approve
+it does not prove email ownership during service signup. The owner must approve
 the link. The principal remains pinned across disconnects.
 
 First-owner enrollment needs a random host code and an expiring signed cookie.
-Later user creation and sessions for other users are refused. Password login and
-email account linking are disabled. Browser mutations need the exact Origin and
+Later user creation and sessions for other users are refused. Password login is
+the personal default. Better Auth stores a scrypt hash, with 12 to 128 characters
+required. Email account linking and email password reset routes are disabled.
+Host password recovery revokes all service sessions and client grants. Browser mutations need the exact Origin and
 a CSRF value tied to a secure browser cookie and the current session. Setup pages
 use no-store, no-referrer, escaping, and a restrictive content security policy.
-The first Apple sign-in and its callback still require a live test.
+Password attempts are limited in the database. Signup and login still need a live
+test. Apple sign-in is optional and needs developer registration.
 
 The public web service exposes only selected OAuth routes. Client creation and
 direct continuation/consent APIs are blocked. CIMD uses Better Auth's supplied
@@ -84,8 +87,8 @@ revocation request. Revoke its grant in the dashboard too.
 
 SQLite and backups can retain old encrypted data after disconnect. Revoke the
 Apple app-specific password at Apple as well. Protect metadata, keys, database,
-WAL files, and backups. The Apple login client secret lasts 30 days from web
-process startup; restart before expiry. See [personal setup](docs/personal-setup.md)
+WAL files, and backups. Optional Apple login signs a 30-day client secret when its provider function is
+called. See [personal setup](docs/personal-setup.md)
 for recovery, key changes, and the live validation steps.
 
 ## Report a problem

@@ -47,7 +47,19 @@ export function createAuth(config: Config, store: Store) {
     baseURL: config.origin,
     basePath: "/api/auth",
     secret: config.authSecret,
-    emailAndPassword: { enabled: false },
+    emailAndPassword: {
+      enabled: config.loginMethod === "password",
+      minPasswordLength: 12,
+      maxPasswordLength: 128,
+    },
+    rateLimit: {
+      enabled: true,
+      storage: "database",
+      customRules: {
+        "/sign-in/email": { window: 60, max: 5 },
+        "/sign-up/email": { window: 60, max: 3 },
+      },
+    },
     session: { expiresIn: 30 * 86400, updateAge: 86400 },
     account: { encryptOAuthTokens: true, accountLinking: { enabled: false } },
     trustedOrigins: [config.origin, "https://appleid.apple.com"],
@@ -55,25 +67,28 @@ export function createAuth(config: Config, store: Store) {
     onAPIError: { errorURL: config.origin + "/login-error" },
     disabledPaths: [
       "/token",
-      "/sign-up/email",
+      ...(config.loginMethod === "password" ? [] : ["/sign-up/email"]),
       "/oauth2/create-client",
       "/oauth2/update-client",
       "/oauth2/admin/create-client",
       "/oauth2/admin/update-client",
     ],
-    socialProviders: {
-      apple: async () => ({
-        clientId: config.appleClientId,
-        clientSecret: await new SignJWT({})
-          .setProtectedHeader({ alg: "ES256", kid: config.appleKeyId })
-          .setIssuer(config.appleTeamId)
-          .setSubject(config.appleClientId)
-          .setAudience("https://appleid.apple.com")
-          .setIssuedAt()
-          .setExpirationTime("30d")
-          .sign(await importPKCS8(config.applePrivateKey, "ES256")),
-      }),
-    },
+    socialProviders:
+      config.loginMethod === "apple"
+        ? {
+            apple: async () => ({
+              clientId: config.appleClientId,
+              clientSecret: await new SignJWT({})
+                .setProtectedHeader({ alg: "ES256", kid: config.appleKeyId })
+                .setIssuer(config.appleTeamId)
+                .setSubject(config.appleClientId)
+                .setAudience("https://appleid.apple.com")
+                .setIssuedAt()
+                .setExpirationTime("30d")
+                .sign(await importPKCS8(config.applePrivateKey, "ES256")),
+            }),
+          }
+        : {},
     databaseHooks: {
       user: {
         create: {
@@ -94,8 +109,19 @@ export function createAuth(config: Config, store: Store) {
       },
       session: {
         create: {
-          before: async (session) => {
-            if (session.userId !== store.owner()) throw deny();
+          before: async (session, ctx) => {
+            // Signup queues user.after until its transaction commits. The
+            // first session must use the same protected enrollment request.
+            const owner = store.owner();
+            if (
+              session.userId !== owner &&
+              (owner ||
+                !enrolled(
+                  cookieValue(ctx?.headers, "__Host-calendar-enroll"),
+                  config.authSecret,
+                ))
+            )
+              throw deny();
           },
         },
       },

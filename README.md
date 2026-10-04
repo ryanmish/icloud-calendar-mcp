@@ -5,7 +5,7 @@ It uses iCloud CalDAV, OAuth, server-side write controls, and Cloudflare Tunnel.
 
 **Status:** Personal setup flow implemented. Offline tests cover the calendar tools,
 Better Auth code exchange and refresh, encrypted credentials, and access controls.
-Live Apple login, iCloud access, ChatGPT connection, and devbox deployment are not yet verified.
+Live service login, iCloud access, ChatGPT connection, and devbox deployment are not yet verified.
 
 ## Tools
 
@@ -49,18 +49,20 @@ The HTTP tests run in memory without a network listener.
 
 ## Host on the devbox
 
-Start with the [personal setup guide](docs/personal-setup.md). It covers Apple
-developer registration, secret files, migration, Cloudflare Tunnel, and ChatGPT.
+Start with the [personal setup guide](docs/personal-setup.md). It covers service password login,
+secret files, migration, Cloudflare Tunnel, and ChatGPT.
 See the [deployment record](docs/deployment-record.md) for verified host preparation
-and the current login prerequisite.
+and the current setup state.
 Use `compose.personal.yaml` for the new guided flow. It adds a small Better Auth
 service beside the existing Python server. The intended MCP URL is
 `https://cal.ryanmish.com/mcp`. No live endpoint is claimed.
 
-Sign in with Apple, then connect iCloud with its actual account address and an
-app-specific password. The form prefills the address from `ICLOUD_USERNAME` or
-your saved connection. It does not use the Apple relay email. You select calendar
-rights before you approve ChatGPT. No separate service password is required.
+Create the one-owner account with a service password. Then connect iCloud with
+its actual account address and an app-specific password. The next form fills
+the address from your signup entry or saved connection. You select calendar
+rights before you approve ChatGPT. This path needs no Apple Developer account.
+The service password and iCloud password are separate. Optional Apple identity
+login remains available for installations with the required developer settings.
 
 The [original external-issuer guide](docs/deployment.md) and `compose.yaml` remain
 available. Do not combine the two Compose files. Never enter Apple credentials
@@ -71,7 +73,7 @@ in chat. Test a separate calendar before enabling normal writes.
 See the [login and iCloud setup research](docs/onboarding-plan.md) for the
 Better Auth flow, Apple registration questions, and private ChatGPT setup.
 
-1. Complete secure Apple identity registration and host setup.
+1. Complete secure host setup and first-owner signup.
 2. Verify the container and Cloudflare route on the devbox.
 3. Verify login and calendar reads with ChatGPT.
 4. Verify conditional writes in a test calendar.

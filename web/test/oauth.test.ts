@@ -6,31 +6,43 @@ import { fixture } from "./helpers.js";
 import { verifyOAuthQueryParams } from "../src/oauth-query.js";
 const PASSWORD = "aaaa-bbbb-cccc-dddd";
 test("real provider: setup, PKCE exchange, access checks, refresh, and immediate revocation", async () => {
-  const f = await fixture();
+  const f = await fixture("password", false);
   try {
-    assert.equal(
-      (
-        await f.auth.api.getSession({
-          headers: new Headers({ Cookie: f.cookies }),
-        })
-      )?.user.id,
-      f.user.id,
-    );
-    const client = await f.auth.api.adminCreateOAuthClient({
-      headers: new Headers({ Cookie: f.cookies }),
-      body: {
-        client_id: "test-chatgpt",
-        client_name: "Test ChatGPT",
-        redirect_uris: [
-          "https://chatgpt.com/connector_platform_oauth_redirect",
-        ],
-        token_endpoint_auth_method: "none",
-        grant_types: ["authorization_code", "refresh_token"],
-        scope: "calendar:read calendar:write offline_access",
-        resources: [f.config.origin + "/mcp"],
+    // Seed only a fake test client. No public client-creation endpoint exists.
+    const client = { client_id: "test-chatgpt" };
+    await f.ctx.adapter.create({
+      model: "oauthClient",
+      data: {
+        clientId: client.client_id,
+        name: "Test ChatGPT",
+        disabled: false,
+        redirectUris: ["https://chatgpt.com/connector_platform_oauth_redirect"],
+        tokenEndpointAuthMethod: "none",
+        grantTypes: ["authorization_code", "refresh_token"],
+        responseTypes: ["code"],
+        scopes: ["calendar:read", "calendar:write", "offline_access"],
+        createdAt: new Date(),
+        updatedAt: new Date(),
       },
     });
-    assert.ok(client.client_id);
+    await f.ctx.adapter.create({
+      model: "oauthResource",
+      data: {
+        identifier: f.config.origin + "/mcp",
+        name: "Test Calendar",
+        allowedScopes: ["calendar:read", "calendar:write", "offline_access"],
+      },
+    });
+    await f.ctx.adapter.create({
+      model: "oauthClientResource",
+      data: {
+        clientId: client.client_id,
+        resourceId: f.config.origin + "/mcp",
+      },
+    });
+    let cookie = f.cookies;
+    const request = (path: string, form?: Record<string, string | string[]>) =>
+      f.request(path, form, cookie);
     const verifier =
       "test-pkce-verifier-0123456789012345678901234567890123456789";
     const query = new URLSearchParams({
@@ -44,18 +56,44 @@ test("real provider: setup, PKCE exchange, access checks, refresh, and immediate
       resource: f.config.origin + "/mcp",
     });
     let response = await f.app.handle(
-      f.request("/api/auth/oauth2/authorize?" + query),
+      request("/api/auth/oauth2/authorize?" + query),
     );
     assert.equal(response.status, 302, await response.clone().text());
     let next = new URL(response.headers.get("location")!, f.config.origin);
+    assert.equal(next.pathname, "/sign-in", next.toString());
+    const signupQuery = next.search.slice(1);
+    assert.ok(await verifyOAuthQueryParams(signupQuery, f.config.authSecret));
+    response = await f.app.handle(
+      request("/create-owner", {
+        code: f.config.enrollmentCode,
+        email: "actual@example.com",
+        password: "test-service-password-123456",
+        oauth_query: signupQuery,
+      }),
+    );
+    assert.equal(response.status, 303, await response.clone().text());
+    cookie =
+      response.headers
+        .getSetCookie()
+        .map((c) => c.split(";")[0])
+        .join("; ") + "; __Host-calendar-browser=test-browser";
+    const ownerSession = await f.auth.api.getSession({
+      headers: new Headers({ Cookie: cookie }),
+    });
+    assert.ok(ownerSession);
+    f.session.id = ownerSession.session.id;
+    f.user.id = ownerSession.user.id;
+    assert.equal(f.user.id, f.store.owner());
+    assert.equal(f.store.connection(), undefined);
+    next = new URL(response.headers.get("location")!, f.config.origin);
     assert.equal(next.pathname, "/setup");
     let signed = next.search.slice(1);
     assert.ok(await verifyOAuthQueryParams(signed, f.config.authSecret));
-    let html = await (await f.app.handle(f.request("/setup?" + signed))).text();
+    let html = await (await f.app.handle(request("/setup?" + signed))).text();
     assert.match(html, /value="actual@example.com"/);
     assert.doesNotMatch(html, /relay@privaterelay/);
     response = await f.app.handle(
-      f.request("/connect", {
+      request("/connect", {
         oauth_query: signed,
         username: "actual@example.com",
         password: PASSWORD,
@@ -65,7 +103,7 @@ test("real provider: setup, PKCE exchange, access checks, refresh, and immediate
     assert.equal(response.status, 303, await response.clone().text());
     assert.equal(f.store.connection()?.status, "connected");
     response = await f.app.handle(
-      f.request("/permissions", {
+      request("/permissions", {
         oauth_query: signed,
         read: ["work"],
         write: ["work"],
@@ -76,11 +114,11 @@ test("real provider: setup, PKCE exchange, access checks, refresh, and immediate
     next = new URL(response.headers.get("location")!, f.config.origin);
     assert.equal(next.pathname, "/consent");
     signed = next.search.slice(1);
-    html = await (await f.app.handle(f.request("/consent?" + signed))).text();
+    html = await (await f.app.handle(request("/consent?" + signed))).text();
     assert.match(html, /Approve and return/);
     assert.doesNotMatch(html, new RegExp(PASSWORD));
     response = await f.app.handle(
-      f.request("/approve", { oauth_query: signed, accept: "yes" }),
+      request("/approve", { oauth_query: signed, accept: "yes" }),
     );
     assert.equal(response.status, 303, await response.clone().text());
     next = new URL(response.headers.get("location")!, f.config.origin);
