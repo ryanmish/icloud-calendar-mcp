@@ -57,3 +57,14 @@ Do not put them in chat, shell arguments, logs, source control, screenshots, or 
 
 Do not mark a step complete without its verification result. Store only
 non-secret results in this record.
+
+## Password build verification
+
+Commit `1ea3e56` adds the personal password flow. The existing draft pull
+request and branch contain it. All GitHub Python, web, and container checks pass
+for this code. The clean dev box checkout was updated to that commit. The image
+`icloud-calendar-mcp-web:1ea3e56` builds on the dev box.
+
+This update did not start containers, create service keys or accounts, enter
+Apple credentials, or change DNS or tunnel settings. Live iCloud and ChatGPT
+proof remains open. Use the secure setup steps in the personal guide.
