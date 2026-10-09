@@ -2,7 +2,7 @@
 
 Date: 2026-10-09. This record separates local proof from a live connection.
 
-## Verified this session
+## Pre-deployment verification
 
 - Existing branch: `feat/personal-onboarding`. Local HEAD was `49919fe`.
 - Local Reminders research changes were present and were preserved.
@@ -25,9 +25,10 @@ Date: 2026-10-09. This record separates local proof from a live connection.
 - The existing tunnel configuration has five ingress rules, including the final
   catch-all. No calendar hostname rule is present. Other routes were not changed.
 
-The previous container builds cover the earlier implementation. A container
-build for the first-login fix has not yet been run. Public TLS, Apple account
-access, and the real ChatGPT client flow remain untested.
+At this stage, container builds covered only the earlier implementation, and
+public TLS had not been tested. The approved deployment below subsequently
+verified updated image builds and public TLS. Apple account access and the real
+ChatGPT client flow still require owner-controlled testing.
 
 ## First-login repair
 
@@ -37,7 +38,11 @@ dashboard and refused the request. It now requires a session before that check.
 A new test covers opening `/` and `/sign-in` without a session or owner.
 The running-service startup check also covers this path.
 
-## Proposed live test, awaiting owner approval
+## Approved live test sequence
+
+The owner approved this sequence on 2026-10-09. Deployment steps 1 through 6
+have now passed. See the [deployment record](deployment-record.md) for results
+and the remaining owner-controlled account and client test.
 
 1. Transfer only the reviewed changes to the existing devbox checkout. Recheck
    local edits first. Build the changed container images there.

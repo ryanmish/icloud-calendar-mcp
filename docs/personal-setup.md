@@ -3,10 +3,12 @@
 This guide covers the first personal deployment. One installation permits one
 service owner and one iCloud account. It does not support shared hosting.
 
-The code and offline tests are implemented. The Docker images build. A real service
-login, iCloud connection, Cloudflare route, and ChatGPT connection still need a
-live test. `https://cal.ryanmish.com/mcp` is the intended MCP URL. This guide does
-not mean that the URL is live.
+The code and offline tests are implemented. The Docker images build. On 2026-10-09,
+the devbox service and Cloudflare route were deployed with writes disabled.
+Public HTTPS, OAuth discovery, and refusal of unauthenticated MCP access passed.
+`https://cal.ryanmish.com/mcp` is reachable and requires OAuth. A real service
+login, iCloud connection, and ChatGPT connection still need the owner's live test.
+See the [deployment record](deployment-record.md).
 
 ## User flow
 

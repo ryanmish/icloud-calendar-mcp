@@ -68,3 +68,82 @@ for this code. The clean dev box checkout was updated to that commit. The image
 This update did not start containers, create service keys or accounts, enter
 Apple credentials, or change DNS or tunnel settings. Live iCloud and ChatGPT
 proof remains open. Use the secure setup steps in the personal guide.
+
+## Approved read-only deployment, 2026-10-09
+
+The owner explicitly approved creating protected service files, building and
+starting the Calendar services on the existing dev box, and adding the calendar
+hostname to the existing Cloudflare Tunnel and DNS. Calendar writes stay disabled.
+This approval did not authorize credential entry, email access, or Reminders access.
+
+Deployed implementation commit: `894ff10af69d8f247f632d9276aced8ba73bd49c`.
+It fixes first-owner page loading and adds a temporary two-process startup check.
+The original local Reminders research edits were preserved and committed.
+Local validation passes: 79 Python tests, 25 web tests, lint, TypeScript checks,
+format checks, build, and the temporary startup check.
+
+Verified on the dev box:
+
+- The clean checkout was advanced from `1ea3e56` to the reviewed implementation.
+- Both updated container images build. Database migration completes.
+- Protected environment and service key files use mode 0600. The key directory
+  uses mode 0700. Containers use the existing non-root host UID/GID 1000.
+- Both Compose services are running and healthy. The only published port is
+  `127.0.0.1:3000`; the Python and private web APIs have no published port.
+- Host write calendar and operation lists are empty.
+- At startup, the database had zero owners and zero connected iCloud accounts.
+  No account or Apple credential was created by deployment.
+
+The existing user-managed tunnel configuration was backed up to
+`/home/ryan/.cloudflared/config.before-calendar-20261009T204601Z.yml`.
+Only the `cal.ryanmish.com -> http://127.0.0.1:3000` rule was inserted before
+the catch-all. The candidate passed ingress validation. The DNS command created
+or confirmed its route without the overwrite flag. The existing user service was
+restarted and registered four tunnel connections. All five original ingress
+rules are unchanged; the configuration now has six rules.
+
+Public checks passed with TLS certificate verification:
+
+| Check | Result |
+| --- | --- |
+| `/health` | 200, service healthy |
+| `/sign-in` | 200, first-owner form, Secure cookie, no-store response |
+| `/.well-known/oauth-protected-resource/mcp` | 200, exact MCP resource and issuer |
+| `/.well-known/oauth-authorization-server/api/auth` | 200, exact issuer, S256 PKCE, CIMD advertised |
+| `/api/auth/jwks` | 200; the Python container can also fetch it |
+| `/internal/access` and `/internal/discover` on the public hostname | 404 |
+| Unauthenticated MCP `tools/list` POST | 401, OAuth resource discovery challenge |
+
+Initial probes using Python urllib's default User-Agent received HTTP 403.
+Repeated checks with an explicit service User-Agent, a browser User-Agent, local
+curl, and the Python container's httpx client reached the service. No Cloudflare
+security rule was changed. The real ChatGPT network/client path remains untested.
+
+The four preserved hostname routes returned 200, 200, 502, and 307 on a subsequent
+HTTPS check. The route returning 502 points to a loopback backend that also
+refuses a direct connection. Its configuration was not changed. No successful
+before-restart response was recorded, so this record does not establish when
+that other backend stopped. It was not repaired as part of this deployment.
+
+### Owner setup now available
+
+Open `https://cal.ryanmish.com/sign-in`. Obtain the first-owner setup code from
+`/home/ryan/docker/icloud-calendar-mcp/secrets/enrollment` through a private host
+editor or terminal. Do not send that code in chat or capture it in tool output.
+Enter the actual iCloud address and a new service password. On the next secure
+form, enter the separate Apple app-specific password, then select read calendars.
+Never enter the primary Apple password. Keep credential entry user-controlled.
+
+Use `https://cal.ryanmish.com/mcp` and OAuth when adding the private ChatGPT
+connection. Current official setup is described in [test readiness](test-readiness.md).
+The remaining live checks are owner login, actual iCloud discovery/reads,
+ChatGPT authorization and refresh, cancellation, repair, and revocation.
+The endpoint being reachable does not prove any of those account tests.
+
+### Rollback
+
+Stop only this project's services with the personal Compose file if needed.
+Restore the protected tunnel backup and restart the same user service to remove
+the calendar ingress rule. Remove only the newly added hostname's DNS route if
+fully withdrawing public access. Preserve the database and service keys. Do not
+alter the other tunnel routes or delete account data as part of a rollback.

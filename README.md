@@ -3,9 +3,11 @@
 A self-hosted iCloud Calendar service for ChatGPT and other remote MCP clients.
 It uses iCloud CalDAV, OAuth, server-side write controls, and Cloudflare Tunnel.
 
-**Status:** Personal setup flow implemented. Offline tests cover the calendar tools,
-Better Auth code exchange and refresh, encrypted credentials, and access controls.
-Live service login, iCloud access, ChatGPT connection, and devbox deployment are not yet verified.
+**Status:** Personal setup flow deployed on the dev box. Public HTTPS, OAuth discovery,
+and refusal of unauthenticated MCP access passed on 2026-10-09. Writes are disabled.
+Offline tests cover the calendar tools, Better Auth code exchange and refresh,
+encrypted credentials, and access controls. Owner login, iCloud access, and a real
+ChatGPT connection still need the owner's secure setup and live test.
 
 ## Tools
 
@@ -77,7 +79,8 @@ This is a proposed extension. Reminders tools are not implemented in this server
 ## Next work
 
 See [current test readiness](docs/test-readiness.md) for the first-login repair,
-local startup proof, and the exact live deployment steps that need approval.
+local startup proof, and approved deployment steps. See the
+[deployment record](docs/deployment-record.md) for live verification results.
 
 See [cPanel email research](docs/email-research.md) for a proposed separate,
 read-only IMAP adapter. No email connection or tools are enabled.
