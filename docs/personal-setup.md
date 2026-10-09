@@ -239,6 +239,21 @@ database. They cover the real Better Auth authorization-code and refresh flow,
 private access checks, immediate revocation, secure setup, owner lock, reconnect,
 and permission limits. They do not call Apple's login or iCloud service.
 
+After the development build, check both production entry points locally:
+
+```sh
+.venv/bin/python scripts/smoke-personal.py
+```
+
+This command migrates a temporary database and starts both services on temporary
+loopback ports. It checks first-owner setup, OAuth discovery, and refusal of
+unauthenticated MCP and private API requests. It stops its services and removes
+its temporary files, including after a failed check. It does not create an owner,
+calendar connection, or client grant. Do not enter real credentials through these
+temporary HTTP listeners. This check does not prove public TLS or ChatGPT access.
+`MCP_PORT` can select the Python listener port for local checks; its normal default
+remains 8000. The Compose backend URL assumes that default.
+
 The live test must check service signup and login, the tunnel, MCP discovery,
 ChatGPT CIMD and return callback, calendar reads, cancellation, credential repair,
 and client revocation. Test create/update only on a separate calendar after a

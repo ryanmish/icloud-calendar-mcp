@@ -4,6 +4,27 @@ import { verifyPassword } from "better-auth/crypto";
 import { fixture } from "./helpers.js";
 
 const PASSWORD = "test-service-password-123456";
+test("a new installation shows owner setup to a visitor without a session", async () => {
+  const f = await fixture("password", false);
+  try {
+    for (const path of ["/", "/sign-in"]) {
+      const response = await f.app.handle(new Request(f.config.origin + path));
+      assert.equal(response.status, 200);
+      const html = await response.text();
+      assert.match(html, /Create account and continue/);
+      assert.match(html, /Host setup code/);
+      assert.match(html, /name="csrf"/);
+      assert.match(
+        response.headers.get("set-cookie") || "",
+        /__Host-calendar-browser=.*Secure/,
+      );
+    }
+    assert.equal(f.store.owner(), undefined);
+    assert.equal(f.store.connection(), undefined);
+  } finally {
+    f.db.close();
+  }
+});
 function cookies(response: Response) {
   return (
     response.headers

@@ -154,5 +154,5 @@ def main():
     # limited to the host loopback interface by compose.yaml.
     build_server(settings).run(
         transport="http", host=os.environ.get("MCP_BIND_HOST", "127.0.0.1"),
-        port=8000, stateless_http=True
+        port=int(os.environ.get("MCP_PORT", "8000")), stateless_http=True
     )

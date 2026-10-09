@@ -321,7 +321,7 @@ export class App {
         const session = await this.auth.api.getSession({
           headers: request.headers,
         });
-        if (session?.user.id === this.store.owner())
+        if (session && session.user.id === this.store.owner())
           return this.dashboard(request, q);
         const form = this.hidden(request, q);
         if (this.config.loginMethod === "password") {

@@ -68,7 +68,19 @@ The [original external-issuer guide](docs/deployment.md) and `compose.yaml` rema
 available. Do not combine the two Compose files. Never enter Apple credentials
 in chat. Test a separate calendar before enabling normal writes.
 
+## Reminders research
+
+See [Apple Reminders research](docs/reminders-research.md) for existing tools,
+shared setup, repeat behavior, synchronization limits, and required permissions.
+This is a proposed extension. Reminders tools are not implemented in this server.
+
 ## Next work
+
+See [current test readiness](docs/test-readiness.md) for the first-login repair,
+local startup proof, and the exact live deployment steps that need approval.
+
+See [cPanel email research](docs/email-research.md) for a proposed separate,
+read-only IMAP adapter. No email connection or tools are enabled.
 
 See the [login and iCloud setup research](docs/onboarding-plan.md) for the
 Better Auth flow, Apple registration questions, and private ChatGPT setup.
