@@ -1,0 +1,6 @@
+# Add this rule to your existing named tunnel. Do not replace its other routes.
+# Example only. No tunnel or DNS setting was changed.
+ingress:
+  - hostname: cal.ryanmish.com
+    service: http://127.0.0.1:3000
+  - service: http_status:404

@@ -3,8 +3,11 @@
 A self-hosted iCloud Calendar service for ChatGPT and other remote MCP clients.
 It uses iCloud CalDAV, OAuth, server-side write controls, and Cloudflare Tunnel.
 
-**Status:** Initial implementation. Offline tests cover access and write controls.
-Live iCloud access, the full ChatGPT OAuth flow, and devbox deployment are not yet verified.
+**Status:** Personal setup flow deployed on the dev box. Public HTTPS, OAuth discovery,
+and refusal of unauthenticated MCP access passed on 2026-10-09. Writes are disabled.
+Offline tests cover the calendar tools, Better Auth code exchange and refresh,
+encrypted credentials, and access controls. Owner login, iCloud access, and a real
+ChatGPT connection still need the owner's secure setup and live test.
 
 ## Tools
 
@@ -24,7 +27,7 @@ Free-time calculation and pagination are planned.
 
 ## Access controls
 
-Each installation supports one Apple account and one permitted OAuth subject.
+Each installation supports one iCloud account and one service owner.
 OAuth grants access to this service. The Apple app-specific password grants the
 service access to iCloud. These are separate credentials.
 
@@ -48,24 +51,54 @@ The HTTP tests run in memory without a network listener.
 
 ## Host on the devbox
 
-See [the Cloudflare setup guide](docs/deployment.md). The repository contains a
-container definition, Compose configuration, a tunnel ingress example, and a
-non-secret environment template. These files do not deploy or connect an account.
+Start with the [personal setup guide](docs/personal-setup.md). It covers service password login,
+secret files, migration, Cloudflare Tunnel, and ChatGPT.
+See the [deployment record](docs/deployment-record.md) for verified host preparation
+and the current setup state.
+Use `compose.personal.yaml` for the new guided flow. It adds a small Better Auth
+service beside the existing Python server. The intended MCP URL is
+`https://cal.ryanmish.com/mcp`. No live endpoint is claimed.
 
-First configure an OAuth issuer, the public hostname, and the permitted subject.
-Enter the Apple app-specific password only through a secure host setup process.
-Never enter it in chat. Then test a separate calendar before enabling normal writes.
+Create the one-owner account with a service password. Then connect iCloud with
+its actual account address and an app-specific password. The next form fills
+the address from your signup entry or saved connection. You select calendar
+rights before you approve ChatGPT. This path needs no Apple Developer account.
+The service password and iCloud password are separate. Optional Apple identity
+login remains available for installations with the required developer settings.
+
+The [original external-issuer guide](docs/deployment.md) and `compose.yaml` remain
+available. Do not combine the two Compose files. Never enter Apple credentials
+in chat. Test a separate calendar before enabling normal writes.
+
+## Reminders research
+
+See [Apple Reminders research](docs/reminders-research.md) for existing tools,
+shared setup, repeat behavior, synchronization limits, and required permissions.
+This is a proposed extension. Reminders tools are not implemented in this server.
 
 ## Next work
 
-1. Choose and configure the OAuth issuer and exact ChatGPT callback.
+See [current test readiness](docs/test-readiness.md) for the first-login repair,
+local startup proof, and approved deployment steps. See the
+[deployment record](docs/deployment-record.md) for live verification results.
+
+See [cPanel email research](docs/email-research.md) for a proposed separate,
+read-only IMAP adapter. No email connection or tools are enabled.
+
+See the [login and iCloud setup research](docs/onboarding-plan.md) for the
+Better Auth flow, Apple registration questions, and private ChatGPT setup.
+
+1. Complete secure host setup and first-owner signup.
 2. Verify the container and Cloudflare route on the devbox.
 3. Verify login and calendar reads with ChatGPT.
 4. Verify conditional writes in a test calendar.
 5. Add free-time calculation, result pagination, and request limits.
-6. Add separate user connections and encrypted secret storage before shared hosting.
+6. Add separate user connections and isolation checks before shared hosting.
 
-Open-source code can be self-hosted per user now. Shared public hosting needs further work.
+The current scope is a personal installation. Shared public hosting needs further work.
+
+The Node service uses Node 24.16.0. Run `npm ci`, `npm run check`, `npm test`, and
+`npm run build` from `web/`. Tests use fake credentials and an in-memory database.
 
 ## Sources and license
 
