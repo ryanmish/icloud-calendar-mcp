@@ -13,13 +13,15 @@ WRITE_SCOPE = "calendar:write"
 
 
 class OwnerJWTVerifier(JWTVerifier):
-    def __init__(self, *, owner_subject: str, **kwargs):
+    def __init__(self, *, owner_subject: str | None, setup_bridge=None, **kwargs):
         super().__init__(**kwargs)
         self.owner_subject = owner_subject
+        self.setup_bridge = setup_bridge
 
     async def verify_token(self, token):
         access = await super().verify_token(token)
-        if access is None or access.claims.get("sub") != self.owner_subject:
+        if access is None or (self.owner_subject is not None
+                              and access.claims.get("sub") != self.owner_subject):
             return None
         # JWTVerifier checks exp when present. Require it rather than accepting
         # an otherwise valid token that has no expiration.
@@ -30,13 +32,20 @@ class OwnerJWTVerifier(JWTVerifier):
                 or type(not_before) not in (int, float) or not math.isfinite(not_before)
                 or not_before > time.time()):
             return None
+        if self.setup_bridge:
+            from .service import PolicyError
+            try:
+                await self.setup_bridge.access(token, check_only=True)
+            except PolicyError:
+                return None
         return access
 
 
-def build_auth(settings: Settings):
+def build_auth(settings: Settings, *, setup_bridge=None):
     return RemoteAuthProvider(
         token_verifier=OwnerJWTVerifier(
-            owner_subject=settings.owner_subject,
+            owner_subject=None if setup_bridge else settings.owner_subject,
+            setup_bridge=setup_bridge,
             jwks_uri=settings.jwks_url,
             issuer=settings.issuer,
             audience=settings.public_url + "/mcp",

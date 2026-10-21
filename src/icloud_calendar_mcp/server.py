@@ -27,21 +27,26 @@ class Profile(BaseModel):
 
 
 def build_server(settings: Settings, *, client=None, auth=None):
-    caldav = client if client is not None else ICloudClient(
+    from .setup import SetupBridge, discover
+    bridge = SetupBridge(settings) if settings.setup_url else None
+    caldav = None if bridge else client if client is not None else ICloudClient(
         username=settings.apple_id, password=settings.read_password()
     )
-    service = CalendarService(settings, caldav)
+    service = bridge if bridge else CalendarService(settings, caldav)
 
     @asynccontextmanager
     async def lifespan(server):
         try:
             yield
         finally:
-            await caldav.aclose()
+            if bridge:
+                await bridge.close()
+            else:
+                await caldav.aclose()
 
     mcp = FastMCP(
         "iCloud Calendar",
-        auth=auth if auth is not None else build_auth(settings),
+        auth=auth if auth is not None else build_auth(settings, setup_bridge=bridge),
         lifespan=lifespan,
         mask_error_details=True,
         instructions=(
@@ -55,6 +60,8 @@ def build_server(settings: Settings, *, client=None, auth=None):
 
     async def call(operation, **kwargs):
         try:
+            if bridge:
+                return await bridge.call(operation, **kwargs)
             return await getattr(service, operation)(**kwargs)
         except (PolicyError, DavError) as exc:
             raise ToolError(str(exc)) from None
@@ -68,7 +75,7 @@ def build_server(settings: Settings, *, client=None, auth=None):
               meta={"openai/profile": True})
     async def get_profile() -> Profile:
         """Return the identity of the permitted account connection."""
-        profile = hashlib.sha256(
+        profile = await call("profile") if bridge else hashlib.sha256(
             f"{settings.issuer}\0{settings.owner_subject}".encode()
         ).hexdigest()
         return Profile(id=profile, nickname="iCloud Calendar")
@@ -130,6 +137,11 @@ def build_server(settings: Settings, *, client=None, auth=None):
     async def health(request):
         return JSONResponse({"status": "ok"})
 
+    if bridge:
+        @mcp.custom_route("/internal/discover", methods=["POST"])
+        async def setup_discovery(request):
+            return await discover(request, bridge.secret)
+
     return mcp
 
 
@@ -142,5 +154,5 @@ def main():
     # limited to the host loopback interface by compose.yaml.
     build_server(settings).run(
         transport="http", host=os.environ.get("MCP_BIND_HOST", "127.0.0.1"),
-        port=8000, stateless_http=True
+        port=int(os.environ.get("MCP_PORT", "8000")), stateless_http=True
     )

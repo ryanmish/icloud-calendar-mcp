@@ -38,6 +38,8 @@ class Settings:
     read_calendars: frozenset[str]
     write_calendars: frozenset[str]
     write_operations: frozenset[str]
+    setup_url: str | None = None
+    setup_secret_file: Path | None = None
 
     def __post_init__(self):
         for name in ("public_url", "issuer", "jwks_url"):
@@ -48,7 +50,7 @@ class Settings:
             raise ValueError("MCP_PUBLIC_URL must be an origin without a path.")
         if not self.owner_subject.strip() or not self.apple_id.strip():
             raise ValueError("The owner subject and Apple account name are required.")
-        if not self.read_calendars:
+        if not self.read_calendars and not self.setup_url:
             raise ValueError("At least one readable calendar ID is required.")
         if "*" in self.write_calendars:
             raise ValueError("Writable calendars must use exact IDs.")
@@ -58,6 +60,12 @@ class Settings:
             raise ValueError("Only create and update operations are supported.")
         if self.write_operations and not self.write_calendars:
             raise ValueError("Write operations require at least one writable calendar ID.")
+        if self.setup_url:
+            parsed = urlsplit(self.setup_url)
+            if (parsed.scheme != "http" or parsed.hostname not in {"web", "localhost", "127.0.0.1", "::1"}
+                    or parsed.username or parsed.password or parsed.query or parsed.fragment
+                    or parsed.path not in {"", "/"} or not self.setup_secret_file):
+                raise ValueError("The private setup URL and secret file are required.")
 
     @classmethod
     def from_env(cls):
@@ -67,18 +75,21 @@ class Settings:
                 raise ValueError(f"{name} is required.")
             return value
 
+        setup_url = os.environ.get("MCP_SETUP_URL") or None
         return cls(
             public_url=https_url(required("MCP_PUBLIC_URL"), "MCP_PUBLIC_URL").rstrip("/"),
             issuer=https_url(required("MCP_OAUTH_ISSUER"), "MCP_OAUTH_ISSUER"),
             jwks_url=https_url(required("MCP_OAUTH_JWKS_URL"), "MCP_OAUTH_JWKS_URL"),
-            owner_subject=required("MCP_OWNER_SUBJECT"),
-            apple_id=required("ICLOUD_USERNAME"),
-            password_file=Path(required("ICLOUD_PASSWORD_FILE")),
+            owner_subject="managed-by-setup" if setup_url else required("MCP_OWNER_SUBJECT"),
+            apple_id="managed-by-setup" if setup_url else required("ICLOUD_USERNAME"),
+            password_file=Path("/unused") if setup_url else Path(required("ICLOUD_PASSWORD_FILE")),
             read_calendars=calendar_ids(required("MCP_READ_CALENDARS"), "MCP_READ_CALENDARS"),
             write_calendars=calendar_ids(os.environ.get("MCP_WRITE_CALENDARS", "[]"),
                                         "MCP_WRITE_CALENDARS", allow_empty=True),
             write_operations=calendar_ids(os.environ.get("MCP_WRITE_OPERATIONS", "[]"),
                                          "MCP_WRITE_OPERATIONS", allow_empty=True),
+            setup_url=setup_url,
+            setup_secret_file=Path(required("MCP_SETUP_SECRET_FILE")) if setup_url else None,
         )
 
     def read_password(self) -> str:

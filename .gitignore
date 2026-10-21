@@ -12,5 +12,14 @@ build/
 secrets/
 *.pem
 *.key
+*.p8
 *.log
 .DS_Store
+node_modules/
+web/dist/
+*.sqlite
+*.sqlite-*
+*.db
+*.db-*
+!.env.personal.example
+data/
